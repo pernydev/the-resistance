@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	"github.com/pernydev/the-resistance/backend/room"
+	"github.com/pernydev/the-resistance/backend/room/game"
 )
 
 var upgrader = websocket.Upgrader{
@@ -106,9 +107,16 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if rm.Players[tokenData.ID].Sender != nil {
+		rm.Players[tokenData.ID].Sender.Close()
+		rm.Players[tokenData.ID].Sender = nil
+	}
+
 	wsSender := room.NewWSSender(conn)
 	rm.Players[tokenData.ID].Sender = wsSender
 	rm.Update()
+
+	isHost := rm.HostID == tokenData.ID
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -117,8 +125,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		type MessageData struct {
-			Command string         `json:"command"`
-			Data    map[string]any `json:"data"`
+			Command string `json:"command"`
+			Data    string `json:"data"`
 		}
 
 		var messageData MessageData
@@ -129,7 +137,35 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch messageData.Command {
 		case "start":
+			if !isHost {
+				continue
+			}
 			rm.CreateGame()
+		case "settings":
+			{
+				if !isHost {
+					continue
+				}
+				var data room.GameSettings
+				err := json.Unmarshal([]byte(messageData.Data), &data)
+				if err != nil {
+					fmt.Println("not ok")
+					continue
+				}
+				rm.Settings = data
+				rm.Update()
+			}
+		case "continue":
+			{
+				if !isHost {
+					continue
+				}
+				switch rm.Game.State {
+				case game.GameStateRoleReveal:
+					rm.Game.SetState(game.GameStateCompositionCreation)
+				}
+				rm.Update()
+			}
 		}
 
 	}

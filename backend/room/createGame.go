@@ -11,10 +11,12 @@ import (
 
 func CreateGame(room *Room) {
 	g := game.Game{
-		ID:      room.ID,
-		Players: map[string]*game.GamePlayer{},
+		ID:       room.ID,
+		Players:  map[string]*game.GamePlayer{},
+		Missions: map[game.MissionIndex]*game.Mission{},
+		State:    game.GameStateRoleReveal,
 	}
-	game.CreateGameMissions(&g)
+
 	for id := range room.Players {
 		gplayer := game.GamePlayer{
 			ID: id,
@@ -31,10 +33,11 @@ func CreateGame(room *Room) {
 		p.RoleCard = cards[i]
 		i++
 	}
+
+	game.CreateGameMissions(&g)
+
 	room.Game = &g
-	fmt.Println("updating room")
 	room.Update()
-	fmt.Println("updated")
 }
 
 func shuffleCards(cards []game.RoleCard) []game.RoleCard {

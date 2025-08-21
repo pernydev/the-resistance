@@ -30,9 +30,9 @@ type Game struct {
 	Missions map[MissionIndex]*Mission `json:"missions"`
 	Players  map[string]*GamePlayer    `json:"players"`
 
-	CompositionCreator int `json:"composition_creatio`
+	CompositionCreator int `json:"composition_creator"`
 }
 
-func NewGame() {
-
+func (g *Game) SetState(state GameState) {
+	g.State = state
 }
