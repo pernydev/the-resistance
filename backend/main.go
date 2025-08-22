@@ -10,6 +10,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/pernydev/the-resistance/backend/room"
 	"github.com/pernydev/the-resistance/backend/room/game"
+	cors "github.com/rs/cors/wrapper/gin"
 )
 
 var upgrader = websocket.Upgrader{
@@ -24,6 +25,7 @@ var upgrader = websocket.Upgrader{
 func main() {
 	godotenv.Overload()
 	r := gin.Default()
+	r.Use(cors.Default())
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -49,7 +51,16 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		r.AddPlayer(params.Name)
+		token, err := r.AddPlayer(params.Name)
+		if err != nil {
+			fmt.Println(err)
+			c.Status(500)
+			return
+		}
+		c.JSON(200, gin.H{
+			"room_id": roomID,
+			"token":   token,
+		})
 	})
 
 	r.POST("/rooms/new", func(c *gin.Context) {
@@ -153,7 +164,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				rm.Settings = data
-				rm.Update()
 			}
 		case "continue":
 			{
@@ -161,12 +171,52 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				switch rm.Game.State {
-				case game.GameStateRoleReveal:
-					rm.Game.SetState(game.GameStateCompositionCreation)
+				case game.GameStateCompositionCreation:
+					rm.Game.SetState(game.GameStateVoting)
+				case game.GameStateVotingReveal:
+					if rm.Game.CurrentCompositionRejected {
+						rm.Game.SetState(game.GameStateVoting)
+						continue
+					}
+					rm.Game.SetState(game.GameStateMission)
 				}
-				rm.Update()
+
+			}
+		case "next":
+			{
+				if !isHost {
+					continue
+				}
+				rm.Game.NextMission()
+			}
+		case "add":
+			{
+				if rm.Game.PlayerOrder[rm.Game.CurrentPlayer] != tokenData.ID {
+					continue
+				}
+
+				rm.Game.Players[messageData.Data].IsInComposition = !rm.Game.Players[messageData.Data].IsInComposition
+				if rm.Game.AmountInComposition() > rm.Game.Missions[rm.Game.Mission].ParticipantCount {
+					rm.Game.Players[messageData.Data].IsInComposition = !rm.Game.Players[messageData.Data].IsInComposition
+				}
+			}
+		case "vote":
+			{
+				vote := game.Vote(messageData.Data == "approve")
+				rm.Game.Vote(tokenData.ID, vote)
+			}
+
+		case "mission_submit":
+			{
+				if !rm.Game.Players[tokenData.ID].IsInComposition {
+					continue
+				}
+				result := game.MissionResult(messageData.Data)
+				rm.Game.Missions[rm.Game.Mission].Submit(result)
 			}
 		}
+
+		rm.Update()
 
 	}
 }

@@ -10,7 +10,7 @@ import (
 
 type Room struct {
 	ID      string             `json:"id"`
-	Players map[string]*Player `json:"player"`
+	Players map[string]*Player `json:"players"`
 
 	HostID   string       `json:"host_id"`
 	Settings GameSettings `json:"settings"`

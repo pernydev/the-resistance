@@ -3,18 +3,22 @@ package room
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
-	"time"
 
 	"github.com/pernydev/the-resistance/backend/room/game"
+	"github.com/pernydev/the-resistance/backend/utils"
 )
 
 func CreateGame(room *Room) {
+	playerIDs := make([]string, 0, len(room.Players))
+	for key := range room.Players {
+		playerIDs = append(playerIDs, key)
+	}
 	g := game.Game{
-		ID:       room.ID,
-		Players:  map[string]*game.GamePlayer{},
-		Missions: map[game.MissionIndex]*game.Mission{},
-		State:    game.GameStateRoleReveal,
+		ID:          room.ID,
+		Players:     map[string]*game.GamePlayer{},
+		Missions:    map[game.MissionIndex]*game.Mission{},
+		State:       game.GameStateRoleReveal,
+		PlayerOrder: utils.Shuffle(playerIDs),
 	}
 
 	for id := range room.Players {
@@ -27,7 +31,7 @@ func CreateGame(room *Room) {
 	cards := getCards(room)
 	fordebug, _ := json.Marshal(cards)
 	fmt.Println(string(fordebug))
-	cards = shuffleCards(cards)
+	cards = utils.Shuffle(cards)
 	i := 0
 	for _, p := range g.Players {
 		p.RoleCard = cards[i]
@@ -38,14 +42,6 @@ func CreateGame(room *Room) {
 
 	room.Game = &g
 	room.Update()
-}
-
-func shuffleCards(cards []game.RoleCard) []game.RoleCard {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	r.Shuffle(len(cards), func(i, j int) {
-		cards[i], cards[j] = cards[j], cards[i]
-	})
-	return cards
 }
 
 func getCards(room *Room) []game.RoleCard {
